@@ -11,9 +11,10 @@
       "mode": "批处理模式",
       "incremental_image": "增量图像",
       "randomize": "随机",
-      "fixed": "固定",
+      "single_image": "单张图像",
       "seed": "随机种子",
       "index": "索引",
+      "label": "文件批次前缀",
       "pattern": "文件名匹配模式",
       "allow_RGBA_output": "允许 RGBA 输出"
     }
