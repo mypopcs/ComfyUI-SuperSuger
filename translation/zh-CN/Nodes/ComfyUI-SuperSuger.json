@@ -37,5 +37,42 @@
       "text_extension": "文本扩展名",
       "encoding": "文本编码"
     }
+  },
+  "SG_ExhaustiveCombinator": {
+    "title": "提示词穷举组合器 (SG)",
+    "description": "支持最多15个提示词池的笛卡尔积自动生成,具备断点续传和自动循环功能",
+    "inputs": {
+      "template_text": "模板文本",
+      "start_index": "起始索引",
+      "max_combinations": "最大组合数",
+      "auto_queue": "自动循环生成",
+      "pool_1_text": "提示词池 1",
+      "pool_2_text": "提示词池 2",
+      "pool_3_text": "提示词池 3",
+      "pool_4_text": "提示词池 4",
+      "pool_5_text": "提示词池 5",
+      "pool_6_text": "提示词池 6",
+      "pool_7_text": "提示词池 7",
+      "pool_8_text": "提示词池 8",
+      "pool_9_text": "提示词池 9",
+      "pool_10_text": "提示词池 10",
+      "pool_11_text": "提示词池 11",
+      "pool_12_text": "提示词池 12",
+      "pool_13_text": "提示词池 13",
+      "pool_14_text": "提示词池 14",
+      "pool_15_text": "提示词池 15"
+    },
+    "outputs": {
+      "STRING": "提示词",
+      "log_info": "详细日志信息",
+      "current_index": "当前索引",
+      "total_count": "总组合数",
+      "is_completed": "是否完成"
+    },
+    "widgets": {
+      "start_index": "起始索引位置",
+      "max_combinations": "最大组合数",
+      "auto_queue": "自动循环生成"
+    }
   }
 }

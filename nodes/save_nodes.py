@@ -2,7 +2,6 @@ import os
 import glob
 import re
 from PIL import Image
-import torch
 import numpy as np
 
 # 辅助函数：将 ComfyUI/PyTorch 张量转换为 PIL 图像格式
