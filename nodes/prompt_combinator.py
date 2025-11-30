@@ -26,7 +26,7 @@ class ExhaustivePromptCombinator:
     # 节点描述
     CATEGORY = "SuperSuger/提示词"
     # 节点描述
-    DESCRIPTION = "对多个提示词池进行穷举组合，生成所有可能的组合提示词。"
+    DESCRIPTION = "对多个提示词池进行穷举组合，生成所有可能的组合提示词。提示词池中的提示词按顺序插入提示词输入模板中使用[1],[2]等锚点位置，提示词池每个提示词占一行，提示词模板没有写的锚点的提示词池不参与组合"
     # 节点输出参数
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("提示词", "运行日志")
