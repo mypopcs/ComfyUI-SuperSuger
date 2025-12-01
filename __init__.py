@@ -3,6 +3,7 @@ from .nodes.load_nodes import *
 from .nodes.save_nodes import *
 from .nodes.prompt_combinator import *
 from .nodes.text_nodes import *
+from .nodes.create_tag import *
 
 NODE_CONFIG = {
     #导入
@@ -13,6 +14,8 @@ NODE_CONFIG = {
     "SG_ExhaustiveCombinator": {"class": ExhaustivePromptCombinator, "name": "提示词穷举组合 (SG)"},
     #多行文本输入
     "SG_MultiLineTextInput": {"class": MultiLineTextInput, "name": "多行文本输入 (SG)"},
+    #创建文本标签
+    "SG_CreateTag": {"class": CreateTag, "name": "创建文本标签 (SG)"},
 }
 def generate_node_mappings(node_config):
     node_class_mappings = {}

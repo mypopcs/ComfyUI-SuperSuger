@@ -1,6 +1,3 @@
-import numpy as np
-from PIL import Image
-
 # 文本节点模块
 # 多行文本输入节点 (MultiLineTextInput)
 class MultiLineTextInput:
