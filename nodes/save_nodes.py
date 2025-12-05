@@ -16,7 +16,7 @@ class ImageWithTextSaver:
     # 节点返回的数据类型
     RETURN_TYPES = ("STRING",)
     # 节点分组
-    CATEGORY = "SuperSuger/文件/保存图像和文本文件"
+    CATEGORY = "SuperSuger/文件"
     # 节点描述
     DESCRIPTION = "按指定前缀同时保存图像和文本文件到指定目录"
     # 节点运行的 Python 函数名称

@@ -7,7 +7,7 @@ from PIL import Image
 class BatchImageLoader:
     # 节点的基本信息
     # 类别是我们在 ComfyUI 菜单中找到节点的分组。
-    CATEGORY = "SuperSuger/图像/加载图像" 
+    CATEGORY = "SuperSuger/图像" 
     # 描述
     DESCRIPTION = "批量加载图像节点，支持增量、随机和单张模式。"
     # 节点运行的 Python 函数名称

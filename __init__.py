@@ -1,21 +1,25 @@
 # 导入节点类
 from .nodes.load_nodes import *
 from .nodes.save_nodes import *
-from .nodes.prompt_combinator import *
+from .nodes.prompt_combination_generator import *
+from .nodes.auto_queue_loop import *
 from .nodes.text_nodes import *
 from .nodes.create_tag import *
+
 
 NODE_CONFIG = {
     #导入
     "SG_BatchImageLoader": {"class": BatchImageLoader, "name": "批量加载图像 (SG)"},
     #保存
     "SG_ImageWithTextSaver": {"class": ImageWithTextSaver, "name": "保存文本和图像 (SG)"},
-    #提示词穷举组合
-    "SG_ExhaustiveCombinator": {"class": ExhaustivePromptCombinator, "name": "提示词穷举组合 (SG)"},
+    #提示词Cartesian product（笛卡尔乘积）穷举组合
+    "SG_ExhaustiveCombinator": {"class": PromptCombinationGenerator, "name": "提示词穷举拼接 (SG)"},
     #多行文本输入
     "SG_MultiLineTextInput": {"class": MultiLineTextInput, "name": "多行文本输入 (SG)"},
     #创建文本标签
     "SG_CreateTag": {"class": CreateTag, "name": "创建文本标签 (SG)"},
+    #自动队列循环
+    "SG_AutoQueueLoop": {"class": AutoQueueLoopController, "name": "自动队列循环 (SG)"},
 }
 def generate_node_mappings(node_config):
     node_class_mappings = {}
@@ -30,7 +34,7 @@ def generate_node_mappings(node_config):
 NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = generate_node_mappings(NODE_CONFIG)
 
 # 确保 ComfyUI 能够找到 Web 扩展文件
-WEB_DIRECTORY = "js"
+WEB_DIRECTORY = "./js"
 
 # 导出所有的映射，这是 ComfyUI 加载插件的约定
-__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "NODE_CONFIG"]
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "NODE_CONFIG", "WEB_DIRECTORY"]

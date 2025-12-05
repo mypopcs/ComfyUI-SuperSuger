@@ -58,7 +58,7 @@ class CreateTag:
     RETURN_TYPES = ("IMAGE", "MASK",)
     RETURN_NAMES = ("image", "mask",)
     FUNCTION = "create_tag"
-    CATEGORY = "SuperSuger/文本"
+    CATEGORY = "SuperSuger/效率工具"
     DESCRIPTION = "创建简单的文本标签，支持行高调节和图像载入。"
 
     @classmethod
