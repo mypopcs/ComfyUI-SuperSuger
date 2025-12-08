@@ -73,7 +73,7 @@ class AutoQueueLoopController:
                 "MAX_ITERATION_LIMIT": ("INT", {
                     "default": 100,
                     "min": 1,
-                    "max": 9999,
+                    "max": 9999999,
                     "step": 1,
                     "display": "number"
                 }),
@@ -135,7 +135,8 @@ class AutoQueueLoopController:
         
         # 步骤 6: 构建状态日志
         status_log = self._build_status_log(
-            global_index, TOTAL_COUNT, effective_limit, INDEX_MODE, CONFIG_HASH
+            global_index, TOTAL_COUNT, effective_limit, INDEX_MODE, 
+            CONFIG_HASH, START_INDEX, state, current_prompt
         )
         
         print(status_log)
@@ -161,12 +162,15 @@ class AutoQueueLoopController:
         - 如果文件不存在或损坏，返回默认状态
         
         返回：
-            状态字典，包含 global_index, last_input_hash, is_completed
+            状态字典，包含 global_index, last_input_hash, is_completed, workflow_started
         """
         default_state = {
             "global_index": 0,
             "last_input_hash": "",
-            "is_completed": False
+            "is_completed": False,
+            "workflow_started": False,
+            "last_mode": "",
+            "last_start_index": -1
         }
         
         try:
@@ -217,13 +221,14 @@ class AutoQueueLoopController:
         """
         根据索引模式确定当前索引，并处理重置逻辑
         
-        核心逻辑（按优先级）：
-        1. "From Start" 模式：强制从 0 开始，清除完成标志
-        2. "Specified" 模式：使用用户指定的索引
-        3. "Auto" 模式（断点续传）：
-           - 如果配置哈希改变 → 硬重置（从 0 开始）
-           - 如果标记为已完成 → 硬重置（从 0 开始）
-           - 否则 → 继续上次的索引（断点续传）
+        简化逻辑（基于工作流运行期间参数不可变的特性）：
+        1. 检查是否是"本次工作流的首次执行"（通过 workflow_started 标志）
+        2. 如果是首次执行：
+           - From Start → 设置索引为 0
+           - Specified → 设置索引为用户指定值
+           - Auto → 根据配置哈希/完成状态决定
+        3. 如果不是首次执行：
+           - 所有模式都使用当前保存的索引继续（自动递增）
         
         参数：
             state: 当前持久化状态
@@ -236,54 +241,73 @@ class AutoQueueLoopController:
         """
         print(f"[索引确定] 模式: {index_mode}")
         
-        # 模式 1: "From Start" - 强制从头开始
-        if index_mode == "From Start":
-            print(f"  → 'From Start' 模式：强制重置为 0")
-            state["global_index"] = 0
-            state["is_completed"] = False
-            state["last_input_hash"] = config_hash
-            self._save_state(state)
-            return 0
+        # 检查是否是本次工作流的首次执行
+        # 通过判断 "workflow_started" 标志来确定
+        workflow_started = state.get("workflow_started", False)
+        last_hash = state.get("last_input_hash", "")
         
-        # 模式 2: "Specified" - 使用用户指定的索引
-        elif index_mode == "Specified":
-            print(f"  → 'Specified' 模式：使用指定索引 {start_index}")
-            state["global_index"] = start_index
-            state["is_completed"] = False
-            state["last_input_hash"] = config_hash
-            self._save_state(state)
-            return start_index
+        # 判断是否是新的工作流运行
+        is_new_workflow = not workflow_started or last_hash != config_hash
         
-        # 模式 3: "Auto" - 自动模式（支持断点续传）
-        else:  # index_mode == "Auto"
-            # 检查配置是否发生变化
-            hash_changed = state["last_input_hash"] != config_hash
-            is_completed = state.get("is_completed", False)
+        # === 首次执行逻辑 ===
+        if is_new_workflow:
+            print(f"  → 检测到新的工作流运行")
             
-            # 情况 3a: 配置哈希改变 → 执行硬重置
-            if hash_changed:
-                print(f"  → 'Auto' 模式：配置哈希改变，执行硬重置")
-                print(f"     旧哈希: {state['last_input_hash'][:8]}...")
-                print(f"     新哈希: {config_hash[:8]}...")
+            # 模式 1: "From Start" - 从 0 开始
+            if index_mode == "From Start":
+                print(f"  → 'From Start' 模式：设置起始索引为 0")
                 state["global_index"] = 0
                 state["is_completed"] = False
+                state["workflow_started"] = True
+                state["last_mode"] = "From Start"
+                state["last_start_index"] = 0
                 state["last_input_hash"] = config_hash
                 self._save_state(state)
                 return 0
             
-            # 情况 3b: 标记为已完成 → 执行硬重置
-            elif is_completed:
-                print(f"  → 'Auto' 模式：上次执行已完成，执行硬重置")
-                state["global_index"] = 0
+            # 模式 2: "Specified" - 从用户指定索引开始
+            elif index_mode == "Specified":
+                print(f"  → 'Specified' 模式：设置起始索引为 {start_index}")
+                state["global_index"] = start_index
                 state["is_completed"] = False
+                state["workflow_started"] = True
+                state["last_mode"] = "Specified"
+                state["last_start_index"] = start_index
+                state["last_input_hash"] = config_hash
                 self._save_state(state)
-                return 0
+                return start_index
             
-            # 情况 3c: 配置未变且未完成 → 断点续传
-            else:
-                current_index = state["global_index"]
-                print(f"  → 'Auto' 模式：断点续传，从索引 {current_index} 继续")
-                return current_index
+            # 模式 3: "Auto" - 根据配置哈希和完成状态决定
+            else:  # index_mode == "Auto"
+                hash_changed = last_hash != config_hash
+                is_completed = state.get("is_completed", False)
+                
+                # 配置改变或已完成 → 从 0 开始
+                if hash_changed or is_completed:
+                    print(f"  → 'Auto' 模式：{'配置改变' if hash_changed else '上次已完成'}，从 0 开始")
+                    state["global_index"] = 0
+                    state["is_completed"] = False
+                    state["workflow_started"] = True
+                    state["last_mode"] = "Auto"
+                    state["last_start_index"] = 0
+                    state["last_input_hash"] = config_hash
+                    self._save_state(state)
+                    return 0
+                else:
+                    # 断点续传
+                    current_index = state.get("global_index", 0)
+                    print(f"  → 'Auto' 模式：断点续传，从索引 {current_index} 继续")
+                    state["workflow_started"] = True
+                    state["last_mode"] = "Auto"
+                    self._save_state(state)
+                    return current_index
+        
+        # === 后续执行逻辑（工作流运行中）===
+        else:
+            # 工作流已启动，所有模式都使用当前索引继续（忽略模式设置）
+            current_index = state.get("global_index", 0)
+            print(f"  → 工作流运行中：从索引 {current_index} 继续（忽略模式设置）")
+            return current_index
     
     def _calculate_limit(self, max_iteration_limit: int, total_count: int) -> int:
         """
@@ -305,7 +329,8 @@ class AutoQueueLoopController:
         return effective_limit
     
     def _build_status_log(self, global_index: int, total_count: int, 
-                         effective_limit: int, index_mode: str, config_hash: str) -> str:
+                         effective_limit: int, index_mode: str, config_hash: str,
+                         start_index: int, state: Dict[str, Any], current_prompt: str) -> str:
         """
         构建状态日志字符串
         
@@ -315,18 +340,53 @@ class AutoQueueLoopController:
             effective_limit: 有效循环上限
             index_mode: 索引模式
             config_hash: 配置哈希值
+            start_index: 用户设置的起始索引
+            state: 当前状态字典
+            current_prompt: 当前提示词内容
             
         返回：
             格式化的状态日志
         """
+        # 获取历史信息
+        last_mode = state.get("last_mode", "无")
+        last_start_index = state.get("last_start_index", "无")
+        workflow_started = state.get("workflow_started", False)
+        
+        # 计算进度百分比
+        progress_percentage = ((global_index + 1) / effective_limit * 100) if effective_limit > 0 else 0
+        
+        # 计算剩余任务数
+        remaining_tasks = effective_limit - (global_index + 1)
+        
         status_log = f"""
-=== 自动队列循环状态 ===
-当前索引: {global_index}
-数据总量: {total_count}
-有效上限: {effective_limit}
-索引模式: {index_mode}
-配置哈希: {config_hash[:8]}...
-进度: {global_index + 1}/{effective_limit}
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                         自动队列循环控制器状态                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+【当前任务信息】
+  ├─ 当前索引: {global_index}
+  ├─ 任务进度: {global_index + 1} / {effective_limit} ({progress_percentage:.1f}%)
+  ├─ 剩余任务: {remaining_tasks}
+  └─ 数据总量: {total_count}
+
+【执行模式】
+  ├─ 当前模式: {index_mode}
+  ├─ 起始索引: {start_index}
+  ├─ 最大迭代: {effective_limit}
+  └─ 工作流状态: {'🟢 运行中' if workflow_started else '🔴 已停止'}
+
+【任务状态】
+  ├─ 是否完成: {'✅ 是' if state.get("is_completed", False) else '⏳ 否'}
+  └─ 配置Hash: {config_hash[:16]}...
+
+【历史记录】
+  ├─ 上次模式: {last_mode}
+  └─ 上次起始: {last_start_index}
+
+【当前提示词】
+{current_prompt}
+
+╚══════════════════════════════════════════════════════════════════════════════╝
 """
         return status_log.strip()
     
@@ -363,6 +423,7 @@ class AutoQueueLoopController:
             print(f"  → 完全完成：已处理所有 {total_count} 个数据")
             state["global_index"] = 0  # 重置为 0，为下次执行做准备
             state["is_completed"] = True  # 标记为已完成
+            state["workflow_started"] = False  # 重置工作流标志
             state["last_input_hash"] = config_hash
             self._save_state(state)
             return False  # 停止循环
@@ -373,6 +434,7 @@ class AutoQueueLoopController:
             print(f"     注意：仍有 {total_count - effective_limit} 个数据未处理")
             state["global_index"] = next_index  # 保存下一个索引，支持断点续传
             state["is_completed"] = False  # 保持未完成状态
+            state["workflow_started"] = False  # 重置工作流标志
             state["last_input_hash"] = config_hash
             self._save_state(state)
             return False  # 停止循环
@@ -382,6 +444,7 @@ class AutoQueueLoopController:
             print(f"  → 继续执行：索引更新为 {next_index}")
             state["global_index"] = next_index  # 更新索引
             state["is_completed"] = False
+            state["workflow_started"] = True  # 保持工作流运行标志
             state["last_input_hash"] = config_hash
             self._save_state(state)
             return True  # 继续循环
@@ -447,6 +510,11 @@ class AutoQueueLoopController:
             with open(state_file, 'r', encoding='utf-8') as f:
                 state = json.load(f)
             
+            # 防御性检查：确保参数不为 None
+            if MAX_ITERATION_LIMIT is None or TOTAL_COUNT is None:
+                print(f"[IS_CHANGED] 参数异常: MAX_ITERATION_LIMIT={MAX_ITERATION_LIMIT}, TOTAL_COUNT={TOTAL_COUNT}")
+                return float("nan")
+            
             # 计算有效上限
             effective_limit = min(MAX_ITERATION_LIMIT, TOTAL_COUNT)
             
@@ -459,8 +527,20 @@ class AutoQueueLoopController:
                 return float("nan")  # 返回 NaN 强制重新执行
             
             # 否则，使用配置哈希作为缓存键
-            return CONFIG_HASH
+            return hash(CONFIG_HASH)
             
         except Exception as e:
             print(f"[IS_CHANGED] 检查失败: {e}")
+            import traceback
+            traceback.print_exc()  # 打印完整的堆栈信息，便于调试
             return float("nan")  # 出错时强制执行
+
+
+# ComfyUI 节点注册
+NODE_CLASS_MAPPINGS = {
+    "SG_AutoQueueLoop": AutoQueueLoopController
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SG_AutoQueueLoop": "Auto Queue Loop Controller"
+}
