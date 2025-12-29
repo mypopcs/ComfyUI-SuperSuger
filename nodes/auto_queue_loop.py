@@ -175,6 +175,7 @@ class AutoQueueLoopController:
             
             # 否则，使用配置哈希作为缓存键
             return hash(CONFIG_HASH)
+            return hash(CONFIG_HASH)
             
         except Exception as e:
             print(f"[IS_CHANGED] 检查失败: {e}")
