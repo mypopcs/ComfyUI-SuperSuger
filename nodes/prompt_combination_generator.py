@@ -1,47 +1,21 @@
-
-"""
-功能：
-- 纯粹的无状态数据生成层
-- 执行笛卡尔乘积生成所有可能的提示词组合
-- 一次性输出完整的提示词数据集及配置信息
-- 支持真正的动态输入槽(前端JS集成在节点中)
-"""
-
 import re
 import hashlib
 import itertools
 from typing import List, Dict, Tuple, Any
 
-
+#执行笛卡尔乘积生成所有可能的提示词组合
 class PromptCombinationGenerator:
-    """
-    提示词组合生成器节点
-    
-    功能：
-    - 纯粹的无状态数据生成层
-    - 执行笛卡尔乘积生成所有可能的提示词组合
-    - 一次性输出完整的提示词数据集及配置信息
-    - 动态输入槽：连接pool_1后显示pool_2，依次类推，最多15个
-    """
-    
+    #动态输入槽：连接pool_1后显示pool_2，依次类推，最多15个
     def __init__(self):
         """初始化节点"""
         pass
     
     @classmethod
     def INPUT_TYPES(cls) -> Dict[str, Any]:
-        """
-        定义节点的输入类型
-        
-        返回：
-        - template_text: 提示词输入模板，使用[1],[2]等锚点位置
-        - pool_1 到 pool_15: 动态提示词池输入
-        
-        注意：动态显示/隐藏由前端JS控制
-        """
+        #定义节点的输入类型
         input_config = {
             "required": {
-                "template_text": ("STRING", {
+                "template_text": ("STRING", { #提示词输入模板，使用[1],[2]等锚点位置
                     "multiline": True,
                     "default": "A photo of [1] with [2] style",
                     "display": "text"
@@ -50,7 +24,7 @@ class PromptCombinationGenerator:
             "optional": {}
         }
         
-        # 定义所有15个pool输入槽
+        # 定义所有15个pool输入槽，动态显示/隐藏由前端JS控制
         for i in range(1, 16):
             pool_key = f"pool_{i}"
             input_config["optional"][pool_key] = ("STRING", {
@@ -63,61 +37,32 @@ class PromptCombinationGenerator:
         return input_config
     
     RETURN_TYPES = ("LIST", "INT", "STRING")
-    RETURN_NAMES = ("COMBO_LIST", "TOTAL_COUNT", "CONFIG_HASH")
+    # RETURN_NAMES = ("全部组合列表", "总组合数", "配置哈希值")
     FUNCTION = "execute"
     OUTPUT_NODE = False
     CATEGORY = "SuperSuger/效率工具"
     DESCRIPTION = """对多个提示词池进行穷举组合，生成所有可能的组合提示词。
-
-使用方法：
 1. 在 template_text 中使用 [1],[2] 等占位符标记插入位置
-2. 连接 pool_1 输入，自动显示 pool_2
-3. 继续连接更多 pool，最多支持 15 个提示词池
-4. 每个提示词池每行一个提示词
-
-示例模板: "A photo of [1] with [2] style"
+2. 连接 pool_1 输入，自动显示 pool_2，最多支持 15 个提示词池
+3. 输入的文本框每行算一个提示词
 """
     
     def execute(self, template_text: str, **kwargs) -> Tuple[List[str], int, str]:
-        """
-        节点主执行方法
-        
-        参数：
-            template_text: 提示词模板，包含占位符如 [1], [2] 等
-            **kwargs: 动态接收 pool_1 到 pool_15 的提示词池
-            
-        返回：
-            (组合列表, 总数量, 配置哈希值)
-        """
         # 从 kwargs 中提取所有 pool 参数并按数字排序
         pools = self._extract_pools_from_kwargs(kwargs)
-        
         # 解析并验证输入数据
         parsed_pools, config_hash = self._parse_and_validate_input(template_text, pools)
-        
         # 生成所有可能的组合
         combo_list = self._generate_combinations(template_text, parsed_pools)
-        
         # 输出调试信息
         print(f"[PromptCombinationGenerator] 生成完成:")
         print(f"  - 模板: {template_text[:50]}...")
         print(f"  - 总组合数: {len(combo_list)}")
         print(f"  - 配置哈希: {config_hash}")
-        
-        return (combo_list, len(combo_list), config_hash)
+        return (combo_list, len(combo_list), config_hash) #(组合列表, 总数量, 配置哈希值)
     
-    def _extract_pools_from_kwargs(self, kwargs: Dict[str, Any]) -> List[str]:
-        """
-        从 kwargs 中提取所有 pool 参数，并按数字顺序排序
-        
-        参数：
-            kwargs: 执行方法接收的所有关键字参数
-            
-        返回：
-            按池编号排序的池内容列表
-        """
-        pools = []
-        
+    def _extract_pools_from_kwargs(self, kwargs: Dict[str, Any]) -> List[str]: #从 kwargs 中提取所有 pool 参数，并按数字顺序排序
+        pools = [] #返回按池编号排序的池内容列表
         # 按顺序检查 pool_1 到 pool_15
         for i in range(1, 16):
             pool_key = f"pool_{i}"
@@ -138,26 +83,7 @@ class PromptCombinationGenerator:
         
         return pools
     
-    def _parse_and_validate_input(self, template: str, pools: List[str]) -> Tuple[List[List[str]], str]:
-        """
-        解析并验证输入数据
-        
-        功能：
-        1. 解析所有 POOL 为元素列表（按行分割，去除空行）
-        2. 使用正则表达式查找模板中的占位符（如 [1], [2]）
-        3. 校验：确保所有引用的占位符对应的 POOL 非空
-        4. 计算配置哈希值用于后续变更检测
-        
-        参数：
-            template: 提示词模板字符串
-            pools: 原始提示词池列表
-            
-        返回：
-            (解析后的提示词池列表, 配置哈希值)
-            
-        异常：
-            ValueError: 当占位符引用的池为空时抛出
-        """
+    def _parse_and_validate_input(self, template: str, pools: List[str]) -> Tuple[List[List[str]], str]: #template: 提示词模板字符串，pools: 原始提示词池列表
         # 解析所有提示词池：按行分割，去除首尾空格，过滤空行
         parsed_pools = []
         for pool in pools:
@@ -201,24 +127,9 @@ class PromptCombinationGenerator:
         print(f"  - 发现占位符: {placeholders}")
         print(f"  - 有效提示词池数量: {sum(1 for p in parsed_pools if p)}")
         
-        return parsed_pools, config_hash
-    
-    def _generate_combinations(self, template: str, parsed_pools: List[List[str]]) -> List[str]:
-        """
-        生成所有可能的提示词组合
-        
-        功能：
-        1. 过滤出非空的提示词池
-        2. 使用 itertools.product 执行笛卡尔乘积
-        3. 对每个组合执行模板字符串替换
-        
-        参数：
-            template: 提示词模板
-            parsed_pools: 解析后的提示词池列表
-            
-        返回：
-            所有组合后的提示词列表
-        """
+        return parsed_pools, config_hash #(解析后的提示词池列表, 配置哈希值)
+    #生成所有可能的提示词组合
+    def _generate_combinations(self, template: str, parsed_pools: List[List[str]]) -> List[str]: #template: 提示词模板字符串，parsed_pools: 解析后的提示词池列表
         # 过滤出非空池，并记录其原始索引（用于占位符替换）
         non_empty_pools = []
         pool_indices = []
@@ -231,7 +142,7 @@ class PromptCombinationGenerator:
         # 如果没有非空池，返回原始模板
         if not non_empty_pools:
             print("[PromptCombinationGenerator] 警告: 没有有效的提示词池，返回原始模板")
-            return [template]
+            return [template] #返回原始模板
         
         # 执行笛卡尔乘积：生成所有可能的组合
         combinations = list(itertools.product(*non_empty_pools))
@@ -254,4 +165,4 @@ class PromptCombinationGenerator:
             
             combo_list.append(result)
         
-        return combo_list
+        return combo_list #返回所有组合后的提示词列表
